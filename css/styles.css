@@ -1,0 +1,79 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  background: #f4f1ea;
+  color: #222;
+}
+
+main {
+  max-width: 28rem;
+  margin: 2rem auto;
+  padding: 0 1rem 3rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+  font-weight: normal;
+}
+
+.status {
+  min-height: 2.5em;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 4.5rem);
+  grid-template-rows: repeat(3, 4.5rem);
+  width: 13.5rem;
+  border: 2px solid #222;
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #222;
+  font-size: 2rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.cell:disabled {
+  cursor: default;
+}
+
+.cell.selected {
+  outline: 3px solid #1a5f9e;
+  outline-offset: -3px;
+}
+
+.cell.legal {
+  background: #dcecc9;
+}
+
+.cell.x {
+  color: #8b1e1e;
+}
+
+.cell.o {
+  color: #1e3a8b;
+}
+
+button {
+  font: inherit;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+.rules-blurb {
+  margin-top: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.rules-blurb ol {
+  padding-left: 1.2rem;
+}
