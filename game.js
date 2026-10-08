@@ -249,6 +249,13 @@ function getBoardKey() {
   return board.join(','); // board only, no player
 }
 
+function recordPosition() {
+  // Record initial slide-phase position (no mover, just setup)
+  if (phase !== 'slide') return;
+  const key = getBoardKey();
+  history.set(key, (history.get(key) || 0) + 1);
+}
+
 function recordAndCheckRepetition(mover) {
   // Only track during slide phase
   if (phase !== 'slide') return false;
