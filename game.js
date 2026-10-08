@@ -235,12 +235,24 @@ function checkWin(player) {
   return false;
 }
 
+// ============================================================
+// REPETITION RULE (3-fold) — Guarantees termination
+// ============================================================
+// State key = board + "|" + player_to_move
+// This means: "same board, same player's turn" = same state
+// Only tracks during SLIDE phase (placement is finite, deterministic)
+// When a state occurs for the 3rd time, the player TO MOVE loses.
+// This mirrors chess's 3-fold repetition rule and mathematically
+// guarantees termination because the state space is finite (~1.8M).
+// ============================================================
+
 function getStateKey() {
+  // Include current player so "board with X to move" ≠ "board with O to move"
   return board.join(',') + '|' + current;
 }
 
 function recordPosition() {
-  // Only record during slide phase
+  // Only record during slide phase — placement phase is finite & deterministic
   if (phase !== 'slide') return;
   const key = getStateKey();
   const count = (history.get(key) || 0) + 1;
@@ -248,12 +260,14 @@ function recordPosition() {
 }
 
 function checkRepetition() {
+  // True if current player has seen THIS EXACT STATE (board + their turn) 3×
   if (phase !== 'slide') return false;
   const key = getStateKey();
   return (history.get(key) || 0) >= 3;
 }
 
 function getRepetitionCount() {
+  // For UI display: how many times current player has seen this state
   if (phase !== 'slide') return 0;
   const key = getStateKey();
   return history.get(key) || 0;
@@ -383,6 +397,11 @@ function updateStatus() {
     const repText = repCount > 0 ? ` (repetition: ${repCount}/3)` : '';
     statusEl.textContent = `${PLAYER_SYMBOL[current]} to slide${repText}`;
     statusEl.style.color = '#333';
+    
+    // Add tooltip explaining repetition rule on first slide phase entry
+    if (repCount === 0 && !statusEl.hasAttribute('title')) {
+      statusEl.title = '3-fold repetition: if same board + your turn occurs 3×, you lose';
+    }
   }
 }
 

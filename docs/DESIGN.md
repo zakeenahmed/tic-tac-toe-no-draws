@@ -23,6 +23,7 @@
 | Repetition threshold | **3-fold** (like chess) | Standard, proven termination mechanism. 2-fold would end games too abruptly. |
 | Who loses on repetition? | **Player to move** | Consistent with chess (player to move loses if they repeat). |
 | Repetition tracked in Phase 1? | **No** | Phase 1 is deterministic setup; repetition only matters in slide phase. |
+| State key includes player? | **Yes** | `board + "|" + player_to_move` — same board with different player to move = different state. |
 
 ---
 
