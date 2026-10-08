@@ -47,9 +47,9 @@ Two-player variant of tic-tac-toe on a 4×4 board where draws are impossible. Ea
 ---
 
 ## No-Draw Guarantee (Repetition Rule)
-- The game tracks every **position + player to move** that occurs during **Phase 2 only**.
-- If the **exact same position with the same player to move** occurs for the **third time**, the player whose turn it is **loses** (their opponent wins).
-- Since the number of possible positions is finite (~1.8 million), and each slide changes the position, the game **must** eventually either produce a 3-in-a-row or hit a 3-fold repetition.
+- The game tracks every **board configuration** that occurs during **Phase 2 only**.
+- If the **exact same board** appears for the **third time**, the player whose move **created that third occurrence loses** (their opponent wins).
+- Since the number of possible boards is finite (~900,000), and each slide changes the board, the game **must** eventually either produce a 3-in-a-row or hit a 3-fold repetition.
 - **Therefore, every game terminates with a winner. Draws are impossible.**
 
 ---
@@ -64,7 +64,7 @@ Two-player variant of tic-tac-toe on a 4×4 board where draws are impossible. Ea
 | Move token | Phase 2 | Click adjacent empty cell (orthogonal only) |
 | Deselect | Phase 2 | Click the selected token again |
 | Win | After any move | 3 in a row (any direction) |
-| Lose by repetition | Phase 2 | Same position + player to move occurs 3× |
+| Lose by repetition | Phase 2 | Same board appears 3× (player who caused it loses) |
 
 ---
 

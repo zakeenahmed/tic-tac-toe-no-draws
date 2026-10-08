@@ -385,8 +385,9 @@ function updateStatus() {
   if (gameOver) {
     if (winner !== null) {
       if (winner === 'repetition') {
-        statusEl.textContent = `${PLAYER_SYMBOL[current === X ? O : X]} wins by 3-fold repetition!`;
-        statusEl.style.color = current === X ? '#00d' : '#d00'; // opponent's color
+        // current is the player who gets the next turn (opponent of mover who caused repetition)
+        statusEl.textContent = `${PLAYER_SYMBOL[current]} wins by 3-fold repetition!`;
+        statusEl.style.color = current === X ? '#d00' : '#00d';
       } else {
         statusEl.textContent = `${PLAYER_SYMBOL[winner]} wins!`;
         statusEl.style.color = winner === X ? '#d00' : '#00d';

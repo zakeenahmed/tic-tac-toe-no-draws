@@ -59,8 +59,7 @@
    A position is defined by:
    - Which 4 of 16 cells hold X tokens: `C(16,4) = 1820`
    - Which 4 of remaining 12 hold O tokens: `C(12,4) = 495`
-   - Which player's turn: `2`  
-   Total distinct positions ≤ `1820 × 495 × 2 = 1,801,800`.
+   Total distinct **board configurations** ≤ `1820 × 495 = 900,900`.
 
 2. **Phase 0 (Pie Rule) is Finite**  
    Exactly 1 move (X places) + 1 choice (O swaps/keeps). Deterministic transition to Phase 1.
@@ -68,18 +67,18 @@
 3. **Phase 1 (Placement) is Finite**  
    At most 7 additional moves (4 each, minus the one already placed). A win can end the game early. If no win after 8th placement → deterministic transition to Phase 2 with X to move.
 
-4. **Phase 2 (Sliding) Changes State Each Turn**  
-   A legal slide moves one token to an adjacent empty cell. This **always** changes the board configuration (the token's position changes). The player to move also alternates. Therefore, each half-move produces a new `(board, player)` pair — or repeats a previous one.
+4. **Phase 2 (Sliding) Changes Board State Each Turn**  
+   A legal slide moves one token to an adjacent empty cell. This **always** changes the board configuration (the token's position changes). Therefore, each slide produces a new board state — or repeats a previous one.
 
 5. **Repetition Rule Bounds Game Length**  
-   The 3-fold repetition rule states: if the same `(board, player)` occurs 3 times during Phase 2, the player to move loses.  
-   With ≤ 1.8M distinct states, after at most `2 × 1.8M = 3.6M` half-moves, some state must occur for the 3rd time (pigeonhole principle).  
+   The 3-fold repetition rule states: if the same **board** occurs 3 times during Phase 2, the player who **made the move** creating the 3rd occurrence loses.  
+   With ≤ 900K distinct boards, after at most `3 × 900K = 2.7M` slides, some board must occur for the 3rd time (pigeonhole principle).  
    → **Game cannot continue indefinitely.**
 
 6. **No Terminal State Without a Winner**  
    The only terminal conditions are:
    - A player forms 3-in-a-row (in Phase 1 or Phase 2) → that player wins.
-   - 3-fold repetition in Phase 2 → player to move loses, opponent wins.  
+   - 3-fold repetition in Phase 2 → player who caused it loses, opponent wins.  
    There is **no** "draw" terminal state.
 
 **Conclusion**: Every game ends in a finite number of moves with exactly one winner. Draws are impossible.
@@ -88,11 +87,11 @@
 
 ### Exhaustive Search Feasibility (Optional Proof Strengthening)
 
-The state space (~1.8M) is small enough for **retrograde analysis** (solving the game completely) if desired:
-- Build directed graph of all legal transitions.
+The state space (~900K boards) is small enough for **retrograde analysis** (solving the game completely) if desired:
+- Build directed graph of all legal transitions between board states.
 - Mark win-in-1 positions (any move creates 3-in-a-row).
 - Propagate: a position is **winning** if ∃ move to a losing position; **losing** if all moves go to winning positions; **draw** if neither (but repetition rule eliminates draws).
-- With repetition rule encoded as a loss for the player to move on 3rd visit, the graph has no cycles without a win/loss label.
+- With repetition rule encoded as a loss for the mover on 3rd visit, the graph has no cycles without a win/loss label.
 - This would prove **which player wins from the start of Phase 2** (likely first player with perfect play).
 
 *Note: Not implemented due to time box, but the structure supports it.*
@@ -112,7 +111,7 @@ The state space (~1.8M) is small enough for **retrograde analysis** (solving the
 | **No handling of "no legal moves"** | Low | Not explicitly handled, but with 8 empty cells and orthogonal slides, a legal move always exists unless all 4 tokens are fully surrounded (extremely rare; repetition would trigger first). |
 | **Selected token stays selected on invalid target** | UX | Intentional — allows player to try another target without re-clicking. |
 | **Win highlighting shows all 3 cells** | ✓ Correct | `checkWinningCell` correctly identifies all cells in any winning line. |
-| **State key includes player to move** | ✓ Correct | `board.join(',') + '|' + current` ensures repetition is per player-to-move. |
+| **State key includes player to move** | ✓ Correct | `board.join(',')` — board-only, no player factor. Same board = same state. |
 | **History never cleared except reset** | ✓ Correct | Map persists for entire game session. |
 
 ### Edge Cases Verified
@@ -124,7 +123,7 @@ The state space (~1.8M) is small enough for **retrograde analysis** (solving the
 | Placement phase ends 4-4 no winner | Transitions to slide phase, X to move |
 | Slide creates 3-in-a-row | Moving player wins immediately |
 | Slide creates opponent's 3-in-a-row | Impossible — only moving player's tokens change |
-| Same position occurs 3× in slide phase | Player to move loses (3-fold repetition) |
+| Same board occurs 3× in slide phase | Player who caused 3rd occurrence loses (board-only 3-fold repetition) |
 | Click own token → click same token | Deselects |
 | Click own token → click invalid target | Token stays selected (can try another target) |
 | Click opponent's token / empty cell with nothing selected | No-op |
@@ -167,7 +166,7 @@ winningLine: number[3] | null  // indices of winning line for visualization
 ```
 
 ### State Key
-`board.join(',') + '|' + current` — uniquely identifies position + player to move.
+`board.join(',')` — identifies board configuration only (no player factor, since repetition is board-only).
 
 ### Win Lines
 Precomputed 24 length-3 segments (8 horizontal, 8 vertical, 4 each diagonal direction).
