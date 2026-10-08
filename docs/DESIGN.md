@@ -20,10 +20,10 @@
 | Slide directions | **Orthogonal only** (up/down/left/right) | Simpler to understand; diagonal slides would allow "jumping" and reduce strategy. |
 | Who slides first? | **X** (placed first in Phase 1) | Fairness — player who starts the game starts both phases. |
 | First-player advantage mitigation | **Pie Rule** (Phase 0) | X places first token; O chooses swap/keep. Standard balancing mechanism. |
-| Repetition threshold | **3-fold** (like chess) | Standard, proven termination mechanism. 2-fold would end games too abruptly. |
-| Who loses on repetition? | **Player to move** | Consistent with chess (player to move loses if they repeat). |
+| Repetition threshold | **3-fold (board-only)** | Same board appears 3× → player who caused it loses. Simpler than chess-style. |
+| Who loses on repetition? | **Player who created the 3rd occurrence** | Direct penalty for cycling; intuitive: "don't recreate a board twice." |
 | Repetition tracked in Phase 1? | **No** | Phase 1 is deterministic setup; repetition only matters in slide phase. |
-| State key includes player? | **Yes** | `board + "|" + player_to_move` — same board with different player to move = different state. |
+| State key includes player? | **No** | Board-only tracking: `board.join(',')` — same board = same state regardless of turn. |
 
 ---
 
@@ -180,12 +180,12 @@ Precomputed orthogonal neighbors for each of 16 cells.
 2. Phase 0 (pie): `handlePie` → place X token → phase='pie_choose'
 3. Phase 0 (pie_choose): Button click → `handlePieChoose('swap'|'keep')` → adjust board/players → phase='place'
 4. Phase 1: `handlePlace` → checkWin → if win: end; else if 4-4: phase='slide', current=X, recordPosition; else switch player → render
-5. Phase 2: `handleSlide` → select or move → if move: checkWin → if win: end; else switch player → recordPosition → checkRepetition → if 3×: end; else render
+5. Phase 2: `handleSlide` → select or move → if move: checkWin → if win: end; else switch player → `recordAndCheckRepetition(mover)` → if 3×: mover loses → end; else render
 6. Render: `render()` → draws winning line via `drawWinningLine()` if game over; shows repetition count in status via `getRepetitionCount()`
 
 ### Complexity
 - Time per move: O(1) — win check scans 24 lines × 3 cells = 72 checks.
-- Space: O(positions visited in slide phase) ≤ ~1.8M entries in worst case (unrealistic; typical game < 50 moves).
+- Space: O(board states visited in slide phase) ≤ ~900K entries (board-only, no player factor).
 - Visual: winning line drawn via CSS transform on absolute-positioned element; O(1) DOM ops.
 
 ---

@@ -3,7 +3,7 @@
 // Phase 1: Place 4 tokens each (alternating) — win checked after each placement
 // Phase 2: Slide own token orthogonally to adjacent empty cell
 // Win: 3 in a row (orthogonal or diagonal) after any move
-// No draw: 3-fold repetition → player to move loses
+// No draw: 3-fold repetition (board only) → player who causes it loses
 
 const EMPTY = 0;
 const X = 1;
@@ -51,7 +51,7 @@ let phase = 'pie'; // 'pie' | 'place' | 'slide'
 let current = X;
 let placed = { [X]: 0, [O]: 0 };
 let selectedIdx = -1;
-let history = new Map(); // key -> count (slide phase only)
+let history = new Map(); // boardKey -> count (slide phase only)
 let gameOver = false;
 let winner = null;
 let firstMoveIdx = -1; // Track X's first placement for pie rule
@@ -211,11 +211,12 @@ function handleSlide(idx) {
   // Switch player
   current = current === X ? O : X;
 
-  // Record position and check repetition
-  recordPosition();
-  if (checkRepetition()) {
+  // Record position and check repetition (board-only, 3-fold)
+  // The player who just moved is the one who caused the new board state
+  const mover = current === X ? O : X; // player who just moved
+  if (recordAndCheckRepetition(mover)) {
     gameOver = true;
-    winner = current === X ? O : X; // Player to move loses
+    winner = mover === X ? O : X; // mover loses, opponent wins
     render();
     updateStatus();
     return;
@@ -225,51 +226,44 @@ function handleSlide(idx) {
   updateStatus();
 }
 
-function checkWin(player) {
-  for (const line of WIN_LINES) {
-    if (line.every(idx => board[idx] === player)) {
-      winningLine = line;
-      return true;
-    }
-  }
-  return false;
+// ============================================================
+// REPETITION RULE (board-only, 3-fold) — Guarantees termination
+// ============================================================
+// Tracks BOARD STATES ONLY (ignores whose turn it is).
+// When a board appears for the 3rd time, the player who
+// MADE THE MOVE that created that 3rd occurrence LOSES.
+// 
+// Example: A→B→A→B→A  (A=board state)
+//   Move 1: X creates B (count A=1, B=1)
+//   Move 2: O creates A (count A=2, B=1)
+//   Move 3: X creates B (count A=2, B=2)
+//   Move 4: O creates A (count A=3) → O loses!
+// 
+// This is simpler than chess-style (which tracks player-to-move)
+// and directly penalizes cycling. Finite boards (~1.8M) guarantee
+// termination because infinite play would require infinite distinct
+// boards, which is impossible.
+// ============================================================
+
+function getBoardKey() {
+  return board.join(','); // board only, no player
 }
 
-// ============================================================
-// REPETITION RULE (3-fold) — Guarantees termination
-// ============================================================
-// State key = board + "|" + player_to_move
-// This means: "same board, same player's turn" = same state
-// Only tracks during SLIDE phase (placement is finite, deterministic)
-// When a state occurs for the 3rd time, the player TO MOVE loses.
-// This mirrors chess's 3-fold repetition rule and mathematically
-// guarantees termination because the state space is finite (~1.8M).
-// ============================================================
-
-function getStateKey() {
-  // Include current player so "board with X to move" ≠ "board with O to move"
-  return board.join(',') + '|' + current;
-}
-
-function recordPosition() {
-  // Only record during slide phase — placement phase is finite & deterministic
-  if (phase !== 'slide') return;
-  const key = getStateKey();
+function recordAndCheckRepetition(mover) {
+  // Only track during slide phase
+  if (phase !== 'slide') return false;
+  
+  const key = getBoardKey();
   const count = (history.get(key) || 0) + 1;
   history.set(key, count);
-}
-
-function checkRepetition() {
-  // True if current player has seen THIS EXACT STATE (board + their turn) 3×
-  if (phase !== 'slide') return false;
-  const key = getStateKey();
-  return (history.get(key) || 0) >= 3;
+  
+  // If this board has now appeared 3 times, the mover loses
+  return count >= 3;
 }
 
 function getRepetitionCount() {
-  // For UI display: how many times current player has seen this state
   if (phase !== 'slide') return 0;
-  const key = getStateKey();
+  const key = getBoardKey();
   return history.get(key) || 0;
 }
 
@@ -361,6 +355,16 @@ function removeWinningLine() {
   if (existing) existing.remove();
 }
 
+function checkWin(player) {
+  for (const line of WIN_LINES) {
+    if (line.every(idx => board[idx] === player)) {
+      winningLine = line;
+      return true;
+    }
+  }
+  return false;
+}
+
 function checkWinningCell(idx, player) {
   for (const line of WIN_LINES) {
     if (line.includes(idx) && line.every(i => board[i] === player)) {
@@ -392,15 +396,15 @@ function updateStatus() {
     statusEl.textContent = `${PLAYER_SYMBOL[current]} to place (${num}/4)`;
     statusEl.style.color = '#333';
   } else {
-    // Slide phase - show repetition count
+    // Slide phase - show repetition count for current board
     const repCount = getRepetitionCount();
-    const repText = repCount > 0 ? ` (repetition: ${repCount}/3)` : '';
+    const repText = repCount > 0 ? ` (board seen ${repCount}/3)` : '';
     statusEl.textContent = `${PLAYER_SYMBOL[current]} to slide${repText}`;
     statusEl.style.color = '#333';
     
     // Add tooltip explaining repetition rule on first slide phase entry
     if (repCount === 0 && !statusEl.hasAttribute('title')) {
-      statusEl.title = '3-fold repetition: if same board + your turn occurs 3×, you lose';
+      statusEl.title = '3-fold repetition: if same board appears 3×, player who caused it loses';
     }
   }
 }
