@@ -21,6 +21,8 @@ This repository contains a single continuous session. The machine-generated reco
 | 8 | Write `docs/RULES.md` and `docs/DESIGN.md` |
 | 9 | Fix: win during placement, X slides first, repetition only in slide phase |
 | 10 | Feat: Pie Rule (Phase 0) for first-player fairness |
+| 11 | Feat: Board-only 3-fold repetition (simpler, intuitive) |
+| 12 | Fix: repetition win message shows correct winner |
 
 ## What Was Not Captured
 - No abandoned attempts — single linear implementation
@@ -45,8 +47,13 @@ Play a full game:
 ## Commit History
 ```bash
 git log --oneline
+d4b0cfc fix: repetition win message shows correct winner; update RULES.md + DESIGN.md
+cb80123 fix: recordPosition() for initial slide phase (was missing after rename)
+4316807 feat: show 'wins by 3-fold repetition' message in UI
+757440a docs: clarify 3-fold repetition logic with comments + UI tooltip
+d385255 feat: board-only 3-fold repetition (simpler, intuitive); update DESIGN.md
 59aaaa0 feat: Pie Rule (Phase 0) for first-player fairness; update RULES.md + DESIGN.md
-b97af9b fix: win during placement, X slides first, repetition only in slide phase; update RULES.md + DESIGN.md
+b97af9b fix: win during placement, X slides first, repetition only in slide phase
 181fa7d docs: RULES.md + DESIGN.md + transcript/README.md
 931c0f5 init: scaffold HTML/CSS/JS with empty board
 ... (earlier commits from initial exploration)
