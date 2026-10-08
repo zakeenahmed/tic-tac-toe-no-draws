@@ -18,7 +18,8 @@
 | Win checked during placement? | **Yes** | Natural tic-tac-toe behavior; if you form 3-in-a-row while placing, you win. |
 | Diagonal lines count? | **Yes** | "Straight line" naturally includes diagonals; 24 lines vs 16 makes wins more accessible. |
 | Slide directions | **Orthogonal only** (up/down/left/right) | Simpler to understand; diagonal slides would allow "jumping" and reduce strategy. |
-| Who slides first? | **X** (placed first) | Fairness — player who starts the game starts both phases. |
+| Who slides first? | **X** (placed first in Phase 1) | Fairness — player who starts the game starts both phases. |
+| First-player advantage mitigation | **Pie Rule** (Phase 0) | X places first token; O chooses swap/keep. Standard balancing mechanism. |
 | Repetition threshold | **3-fold** (like chess) | Standard, proven termination mechanism. 2-fold would end games too abruptly. |
 | Who loses on repetition? | **Player to move** | Consistent with chess (player to move loses if they repeat). |
 | Repetition tracked in Phase 1? | **No** | Phase 1 is deterministic setup; repetition only matters in slide phase. |
@@ -37,13 +38,15 @@
 | **Toroidal 3×3 (wraparound), standard placement** | Elegant but not a sliding variant; brief asked for something "interesting." |
 | **Misère (avoid 3-in-a-row)** | Counter-intuitive for players; harder to explain in RULES.md. |
 | **No win check during placement** | Rejected after review — unnatural for tic-tac-toe; players expect immediate wins. |
+| **No first-player mitigation** | Rejected — X advantage in both phases was significant; Pie Rule is standard fix. |
 
-**Chosen variant** (4×4, 4 tokens each, orthogonal slides, 3-in-a-row, win during placement, X slides first, 3-fold repetition in slide phase) balances:
+**Chosen variant** (4×4, 4 tokens each, orthogonal slides, 3-in-a-row, win during placement, X slides first, 3-fold repetition in slide phase, Pie Rule for fairness) balances:
 - Recognizable tic-tac-toe feel
 - Genuine sliding mechanic
 - Non-trivial strategy
 - Provable no-draw/termination
 - Simple rules explainable in one page
+- Fairness via Pie Rule
 
 ---
 
@@ -58,18 +61,21 @@
    - Which player's turn: `2`  
    Total distinct positions ≤ `1820 × 495 × 2 = 1,801,800`.
 
-2. **Phase 1 (Placement) is Finite**  
-   Exactly 8 moves (4 each). A win can end the game early. If no win after 8th placement → deterministic transition to Phase 2 with X to move.
+2. **Phase 0 (Pie Rule) is Finite**  
+   Exactly 1 move (X places) + 1 choice (O swaps/keeps). Deterministic transition to Phase 1.
 
-3. **Phase 2 (Sliding) Changes State Each Turn**  
+3. **Phase 1 (Placement) is Finite**  
+   At most 7 additional moves (4 each, minus the one already placed). A win can end the game early. If no win after 8th placement → deterministic transition to Phase 2 with X to move.
+
+4. **Phase 2 (Sliding) Changes State Each Turn**  
    A legal slide moves one token to an adjacent empty cell. This **always** changes the board configuration (the token's position changes). The player to move also alternates. Therefore, each half-move produces a new `(board, player)` pair — or repeats a previous one.
 
-3. **Repetition Rule Bounds Game Length**  
+5. **Repetition Rule Bounds Game Length**  
    The 3-fold repetition rule states: if the same `(board, player)` occurs 3 times during Phase 2, the player to move loses.  
    With ≤ 1.8M distinct states, after at most `2 × 1.8M = 3.6M` half-moves, some state must occur for the 3rd time (pigeonhole principle).  
    → **Game cannot continue indefinitely.**
 
-4. **No Terminal State Without a Winner**  
+6. **No Terminal State Without a Winner**  
    The only terminal conditions are:
    - A player forms 3-in-a-row (in Phase 1 or Phase 2) → that player wins.
    - 3-fold repetition in Phase 2 → player to move loses, opponent wins.  
@@ -101,6 +107,7 @@ The state space (~1.8M) is small enough for **retrograde analysis** (solving the
 | **No win check during placement** | High | Added `checkWin(current)` after each placement; immediate win ends game. |
 | **Wrong player slides first** | Medium | After placement phase, explicitly set `current = X` so X slides first (placed first). |
 | **Repetition tracked from reset** | Low | `recordPosition()` now only records during `phase === 'slide'`. Empty board not counted. |
+| **First-player advantage unmitigated** | Medium | Added **Pie Rule** (Phase 0): X places first token, O chooses swap/keep. |
 | **No handling of "no legal moves"** | Low | Not explicitly handled, but with 8 empty cells and orthogonal slides, a legal move always exists unless all 4 tokens are fully surrounded (extremely rare; repetition would trigger first). |
 | **Selected token stays selected on invalid target** | UX | Intentional — allows player to try another target without re-clicking. |
 | **Win highlighting shows all 3 cells** | ✓ Correct | `checkWinningCell` correctly identifies all cells in any winning line. |
@@ -120,8 +127,10 @@ The state space (~1.8M) is small enough for **retrograde analysis** (solving the
 | Click own token → click same token | Deselects |
 | Click own token → click invalid target | Token stays selected (can try another target) |
 | Click opponent's token / empty cell with nothing selected | No-op |
-| Reset during game | Full state reset, back to placement phase |
+| Reset during game | Full state reset, back to Phase 0 (Pie) |
 | Win on last possible slide | Detected correctly |
+| Pie Rule: O chooses Swap | Board token becomes O; O plays next as X |
+| Pie Rule: O chooses Keep | Board token stays X; O plays next as O |
 
 ---
 
@@ -142,16 +151,17 @@ The state space (~1.8M) is small enough for **retrograde analysis** (solving the
 ### Files
 - `index.html` — Structure, loads CSS/JS
 - `style.css` — Minimal styling, grid layout, highlight states
-- `game.js` — All logic (~240 lines, no dependencies)
+- `game.js` — All logic (~280 lines, no dependencies)
 
 ### Key Data Structures
 ```js
 board: number[16]        // 0=empty, 1=X, 2=O
-phase: 'place' | 'slide'
+phase: 'pie' | 'pie_choose' | 'place' | 'slide'
 current: 1 | 2           // player to move
 placed: {1: n, 2: n}     // tokens placed in Phase 1
 selectedIdx: number      // -1 or index of selected token
 history: Map<string, n>  // stateKey -> occurrence count (slide phase only)
+firstMoveIdx: number     // index of X's first token (for Pie swap)
 ```
 
 ### State Key
@@ -165,8 +175,10 @@ Precomputed orthogonal neighbors for each of 16 cells.
 
 ### Event Flow
 1. Click → `onCellClick(idx)`
-2. Phase 1: `handlePlace` → checkWin → if win: end; else if 4-4: phase='slide', current=X, recordPosition; else switch player → render
-3. Phase 2: `handleSlide` → select or move → if move: checkWin → if win: end; else switch player → recordPosition → checkRepetition → if 3×: end; else render
+2. Phase 0 (pie): `handlePie` → place X token → phase='pie_choose'
+3. Phase 0 (pie_choose): Button click → `handlePieChoose('swap'|'keep')` → adjust board/players → phase='place'
+4. Phase 1: `handlePlace` → checkWin → if win: end; else if 4-4: phase='slide', current=X, recordPosition; else switch player → render
+5. Phase 2: `handleSlide` → select or move → if move: checkWin → if win: end; else switch player → recordPosition → checkRepetition → if 3×: end; else render
 
 ### Complexity
 - Time per move: O(1) — win check scans 24 lines × 3 cells = 72 checks.
@@ -187,6 +199,7 @@ Precomputed orthogonal neighbors for each of 16 cells.
 | 7 | `docs: RULES.md + DESIGN.md` |
 | 8 | `chore: transcript/README.md` |
 | 9 | `fix: win during placement, X slides first, repetition only in slide phase` |
+| 10 | `feat: Pie Rule (Phase 0) for first-player fairness` |
 
 ---
 
@@ -202,6 +215,7 @@ Precomputed orthogonal neighbors for each of 16 cells.
 | UI polish | 15 min |
 | Documentation (RULES/DESIGN) | 30 min |
 | Code review + bug fixes | 20 min |
-| **Total** | **~2.5 hours** |
+| Pie Rule implementation | 15 min |
+| **Total** | **~2.75 hours** |
 
 Within 3-hour time box.

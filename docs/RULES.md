@@ -1,7 +1,7 @@
 # Sliding Tic-Tac-Toe (4×4) — Rules
 
 ## Overview
-Two-player variant of tic-tac-toe on a 4×4 board where draws are impossible. Each player has 4 tokens. The game has two phases: **Placement** then **Sliding**.
+Two-player variant of tic-tac-toe on a 4×4 board where draws are impossible. Each player has 4 tokens. The game has three phases: **Pie Rule**, **Placement**, then **Sliding**.
 
 ---
 
@@ -11,16 +11,24 @@ Two-player variant of tic-tac-toe on a 4×4 board where draws are impossible. Ea
 
 ---
 
+## Phase 0 — Pie Rule (Fairness)
+1. **X places the first token** on any empty cell.
+2. **O then chooses** one of two options:
+   - **Swap**: O becomes X, takes the token just placed, and plays next as X.
+   - **Keep**: Sides stay as-is; O plays next as O.
+3. This balances first-player advantage — if X's opening is strong, O can steal it.
+
+---
+
 ## Phase 1 — Placement
-1. X goes first.
-2. Players alternate placing **one token** on any **empty** cell.
-3. **After each placement**, check for a win: if the placing player has **three of their tokens in a straight line**, they win **immediately**.
-4. After 8 total placements (4 each) with no winner, Phase 2 begins.
+1. After the Pie Rule, players alternate placing **one token** on any **empty** cell.
+2. **After each placement**, check for a win: if the placing player has **three of their tokens in a straight line**, they win **immediately**.
+3. After 8 total placements (4 each) with no winner, Phase 2 begins.
 
 ---
 
 ## Phase 2 — Sliding
-1. **X slides first** (since X placed first).
+1. **X slides first** (the player who placed first in Phase 1).
 2. Players alternate turns.
 3. On your turn:
    - **Select** one of your own tokens (click it).
@@ -49,6 +57,8 @@ Two-player variant of tic-tac-toe on a 4×4 board where draws are impossible. Ea
 ## Quick Reference
 | Action | When | How |
 |--------|------|-----|
+| Place first token | Phase 0 (Pie) | X clicks any empty cell |
+| Choose swap/keep | Phase 0 (Pie) | O clicks "Swap" or "Keep" button |
 | Place token | Phase 1 | Click any empty cell |
 | Select token | Phase 2 | Click your own token |
 | Move token | Phase 2 | Click adjacent empty cell (orthogonal only) |

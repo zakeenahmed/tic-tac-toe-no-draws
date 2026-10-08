@@ -1,4 +1,5 @@
 // Sliding Tic-Tac-Toe (4×4) — Game Logic
+// Phase 0: Pie Rule — X places first token, O chooses swap or keep
 // Phase 1: Place 4 tokens each (alternating) — win checked after each placement
 // Phase 2: Slide own token orthogonally to adjacent empty cell
 // Win: 3 in a row (orthogonal or diagonal) after any move
@@ -46,13 +47,14 @@ const ADJACENT = Array.from({ length: 16 }, (_, i) => {
 
 // Game state
 let board = Array(16).fill(EMPTY);
-let phase = 'place'; // 'place' | 'slide'
+let phase = 'pie'; // 'pie' | 'place' | 'slide'
 let current = X;
 let placed = { [X]: 0, [O]: 0 };
 let selectedIdx = -1;
-let history = new Map(); // key -> count
+let history = new Map(); // key -> count (slide phase only)
 let gameOver = false;
 let winner = null;
+let firstMoveIdx = -1; // Track X's first placement for pie rule
 
 // DOM elements
 const boardEl = document.getElementById('board');
@@ -72,14 +74,14 @@ resetBtn.addEventListener('click', resetGame);
 
 function resetGame() {
   board = Array(16).fill(EMPTY);
-  phase = 'place';
+  phase = 'pie';
   current = X;
   placed = { [X]: 0, [O]: 0 };
   selectedIdx = -1;
   history = new Map();
   gameOver = false;
   winner = null;
-  // Don't record initial empty position - only record during slide phase
+  firstMoveIdx = -1;
   render();
   updateStatus();
 }
@@ -87,11 +89,54 @@ function resetGame() {
 function onCellClick(idx) {
   if (gameOver) return;
 
-  if (phase === 'place') {
+  if (phase === 'pie') {
+    handlePie(idx);
+  } else if (phase === 'place') {
     handlePlace(idx);
   } else {
     handleSlide(idx);
   }
+}
+
+function handlePie(idx) {
+  if (board[idx] !== EMPTY) return;
+
+  // X places first token
+  board[idx] = X;
+  placed[X] = 1;
+  firstMoveIdx = idx;
+
+  // Check if X already won (impossible with 1 token, but keep for completeness)
+  if (checkWin(X)) {
+    gameOver = true;
+    winner = X;
+    render();
+    updateStatus();
+    return;
+  }
+
+  // Now O chooses: swap or keep
+  phase = 'pie_choose';
+  current = O; // O makes the choice
+  render();
+  updateStatus();
+}
+
+function handlePieChoose(choice) {
+  // choice: 'swap' or 'keep'
+  if (choice === 'swap') {
+    // O becomes X, X becomes O
+    // Swap the token on board
+    board[firstMoveIdx] = O;
+    placed = { [X]: 0, [O]: 1 };
+    current = X; // The player who is now X goes next (was O)
+  } else {
+    // Keep sides
+    current = O; // O places next
+  }
+  phase = 'place';
+  render();
+  updateStatus();
 }
 
 function handlePlace(idx) {
@@ -112,7 +157,7 @@ function handlePlace(idx) {
   // Check if both players have placed all tokens
   if (placed[X] === 4 && placed[O] === 4) {
     phase = 'slide';
-    // X placed first, so X should slide first for fairness
+    // X (the player who placed first in placement phase) slides first
     current = X;
     recordPosition(); // Record first slide-phase position
   } else {
@@ -221,6 +266,27 @@ function render() {
       cell.classList.add('winner');
     }
   });
+
+  // Show pie choice buttons if in pie_choose phase
+  let choiceDiv = document.getElementById('pie-choice');
+  if (phase === 'pie_choose') {
+    if (!choiceDiv) {
+      choiceDiv = document.createElement('div');
+      choiceDiv.id = 'pie-choice';
+      choiceDiv.style.marginTop = '1rem';
+      choiceDiv.innerHTML = `
+        <p style="margin-bottom: 0.5rem;">O chooses:</p>
+        <button id="pie-swap" style="margin-right: 0.5rem;">Swap (become X)</button>
+        <button id="pie-keep">Keep (stay O)</button>
+      `;
+      statusEl.parentNode.insertBefore(choiceDiv, statusEl.nextSibling);
+      document.getElementById('pie-swap').addEventListener('click', () => handlePieChoose('swap'));
+      document.getElementById('pie-keep').addEventListener('click', () => handlePieChoose('keep'));
+    }
+    choiceDiv.style.display = 'block';
+  } else if (choiceDiv) {
+    choiceDiv.style.display = 'none';
+  }
 }
 
 function checkWinningCell(idx, player) {
@@ -243,7 +309,13 @@ function updateStatus() {
     return;
   }
 
-  if (phase === 'place') {
+  if (phase === 'pie') {
+    statusEl.textContent = `X places first token (Pie Rule)`;
+    statusEl.style.color = '#333';
+  } else if (phase === 'pie_choose') {
+    statusEl.textContent = `O chooses: Swap sides or Keep sides?`;
+    statusEl.style.color = '#333';
+  } else if (phase === 'place') {
     const num = placed[current] + 1;
     statusEl.textContent = `${PLAYER_SYMBOL[current]} to place (${num}/4)`;
     statusEl.style.color = '#333';
