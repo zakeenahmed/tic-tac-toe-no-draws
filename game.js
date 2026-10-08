@@ -55,6 +55,7 @@ let history = new Map(); // key -> count (slide phase only)
 let gameOver = false;
 let winner = null;
 let firstMoveIdx = -1; // Track X's first placement for pie rule
+let winningLine = null; // Store the winning line for visualization
 
 // DOM elements
 const boardEl = document.getElementById('board');
@@ -82,6 +83,7 @@ function resetGame() {
   gameOver = false;
   winner = null;
   firstMoveIdx = -1;
+  winningLine = null;
   render();
   updateStatus();
 }
@@ -226,6 +228,7 @@ function handleSlide(idx) {
 function checkWin(player) {
   for (const line of WIN_LINES) {
     if (line.every(idx => board[idx] === player)) {
+      winningLine = line;
       return true;
     }
   }
@@ -250,6 +253,12 @@ function checkRepetition() {
   return (history.get(key) || 0) >= 3;
 }
 
+function getRepetitionCount() {
+  if (phase !== 'slide') return 0;
+  const key = getStateKey();
+  return history.get(key) || 0;
+}
+
 function render() {
   const cells = boardEl.querySelectorAll('.cell');
   cells.forEach((cell, idx) => {
@@ -262,10 +271,17 @@ function render() {
     if (idx === selectedIdx) {
       cell.classList.add('selected');
     }
-    if (gameOver && winner !== null && checkWinningCell(idx, winner)) {
+    if (gameOver && winner !== null && winningLine && winningLine.includes(idx)) {
       cell.classList.add('winner');
     }
   });
+
+  // Draw winning line if game over with winner
+  if (gameOver && winner !== null && winningLine) {
+    drawWinningLine(winningLine);
+  } else {
+    removeWinningLine();
+  }
 
   // Show pie choice buttons if in pie_choose phase
   let choiceDiv = document.getElementById('pie-choice');
@@ -287,6 +303,48 @@ function render() {
   } else if (choiceDiv) {
     choiceDiv.style.display = 'none';
   }
+}
+
+function drawWinningLine(line) {
+  // Remove any existing line
+  removeWinningLine();
+
+  const [a, b, c] = line;
+  const cells = boardEl.querySelectorAll('.cell');
+  const cellA = cells[a];
+  const cellC = cells[c];
+
+  const boardRect = boardEl.getBoundingClientRect();
+  const aRect = cellA.getBoundingClientRect();
+  const cRect = cellC.getBoundingClientRect();
+
+  const lineEl = document.createElement('div');
+  lineEl.id = 'winning-line';
+  lineEl.style.position = 'absolute';
+  lineEl.style.pointerEvents = 'none';
+  lineEl.style.zIndex = '10';
+  lineEl.style.height = '4px';
+  lineEl.style.background = winner === X ? '#d00' : '#00d';
+  lineEl.style.borderRadius = '2px';
+  lineEl.style.transformOrigin = 'left center';
+
+  const dx = cRect.left - aRect.left;
+  const dy = cRect.top - aRect.top;
+  const length = Math.sqrt(dx * dx + dy * dy);
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+  lineEl.style.width = `${length}px`;
+  lineEl.style.left = `${aRect.left - boardRect.left + cellA.offsetWidth / 2}px`;
+  lineEl.style.top = `${aRect.top - boardRect.top + cellA.offsetHeight / 2}px`;
+  lineEl.style.transform = `rotate(${angle}deg)`;
+
+  boardEl.style.position = 'relative';
+  boardEl.appendChild(lineEl);
+}
+
+function removeWinningLine() {
+  const existing = document.getElementById('winning-line');
+  if (existing) existing.remove();
 }
 
 function checkWinningCell(idx, player) {
@@ -320,7 +378,10 @@ function updateStatus() {
     statusEl.textContent = `${PLAYER_SYMBOL[current]} to place (${num}/4)`;
     statusEl.style.color = '#333';
   } else {
-    statusEl.textContent = `${PLAYER_SYMBOL[current]} to slide`;
+    // Slide phase - show repetition count
+    const repCount = getRepetitionCount();
+    const repText = repCount > 0 ? ` (repetition: ${repCount}/3)` : '';
+    statusEl.textContent = `${PLAYER_SYMBOL[current]} to slide${repText}`;
     statusEl.style.color = '#333';
   }
 }

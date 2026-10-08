@@ -139,8 +139,8 @@ The state space (~1.8M) is small enough for **retrograde analysis** (solving the
 | Issue | Status | Notes |
 |-------|--------|-------|
 | **No computer opponent** | ✅ Not required | Brief says human vs human is sufficient. |
-| **No visual indication of winning line** | ⚠️ Minor | Current code highlights winning *cells* but doesn't draw a line. Acceptable per "visual design not scored." |
-| **Repetition count not shown in UI** | ⚠️ Minor | Player can't see how close to 3-fold they are. Could add a counter. |
+| **No visual indication of winning line** | ✅ Fixed | Winning line now drawn as colored line across the 3 cells. |
+| **Repetition count not shown in UI** | ✅ Fixed | Counter shown in status bar during slide phase (e.g., "repetition: 2/3"). |
 | **No keyboard accessibility** | ⚠️ Minor | Click-only. Not scored per brief. |
 | **Mobile touch targets** | ⚠️ Minor | 400px board → 100px cells, acceptable. |
 
@@ -162,6 +162,7 @@ placed: {1: n, 2: n}     // tokens placed in Phase 1
 selectedIdx: number      // -1 or index of selected token
 history: Map<string, n>  // stateKey -> occurrence count (slide phase only)
 firstMoveIdx: number     // index of X's first token (for Pie swap)
+winningLine: number[3] | null  // indices of winning line for visualization
 ```
 
 ### State Key
@@ -179,10 +180,12 @@ Precomputed orthogonal neighbors for each of 16 cells.
 3. Phase 0 (pie_choose): Button click → `handlePieChoose('swap'|'keep')` → adjust board/players → phase='place'
 4. Phase 1: `handlePlace` → checkWin → if win: end; else if 4-4: phase='slide', current=X, recordPosition; else switch player → render
 5. Phase 2: `handleSlide` → select or move → if move: checkWin → if win: end; else switch player → recordPosition → checkRepetition → if 3×: end; else render
+6. Render: `render()` → draws winning line via `drawWinningLine()` if game over; shows repetition count in status via `getRepetitionCount()`
 
 ### Complexity
 - Time per move: O(1) — win check scans 24 lines × 3 cells = 72 checks.
 - Space: O(positions visited in slide phase) ≤ ~1.8M entries in worst case (unrealistic; typical game < 50 moves).
+- Visual: winning line drawn via CSS transform on absolute-positioned element; O(1) DOM ops.
 
 ---
 
