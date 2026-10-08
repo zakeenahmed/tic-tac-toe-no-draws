@@ -216,7 +216,7 @@ function handleSlide(idx) {
   const mover = current === X ? O : X; // player who just moved
   if (recordAndCheckRepetition(mover)) {
     gameOver = true;
-    winner = mover === X ? O : X; // mover loses, opponent wins
+    winner = 'repetition'; // special value indicating repetition win
     render();
     updateStatus();
     return;
@@ -384,8 +384,13 @@ function checkWinningCell(idx, player) {
 function updateStatus() {
   if (gameOver) {
     if (winner !== null) {
-      statusEl.textContent = `${PLAYER_SYMBOL[winner]} wins!`;
-      statusEl.style.color = winner === X ? '#d00' : '#00d';
+      if (winner === 'repetition') {
+        statusEl.textContent = `${PLAYER_SYMBOL[current === X ? O : X]} wins by 3-fold repetition!`;
+        statusEl.style.color = current === X ? '#00d' : '#d00'; // opponent's color
+      } else {
+        statusEl.textContent = `${PLAYER_SYMBOL[winner]} wins!`;
+        statusEl.style.color = winner === X ? '#d00' : '#00d';
+      }
     } else {
       statusEl.textContent = 'Draw (should not happen)';
     }
