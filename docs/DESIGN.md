@@ -1,93 +1,171 @@
-# Design notes
+# Sliding Tic-Tac-Toe (4×4) — Design Document
 
-## Reading of the brief
+## 1. Reading of the Brief & Ambiguities Resolved
 
-The exercise is not “can you write tic-tac-toe.” It is: take an underspecified two-player variant, make decisions without asking the client, defend them, ship a static browser game, and leave a raw record of how AI tools were used.
+### Brief Requirements
+- **No draw**: No terminal state where neither player has won.
+- **Always terminates**: No line of play continues indefinitely.
+- **Recognizably tic-tac-toe**: Two players, X and O, alternating turns, win by forming a line.
+- **Browser-based**: HTML/CSS/JS, no build step, runs via `python -m http.server`.
 
-Constraints we treated as non-negotiable:
+### Ambiguities & Decisions
 
-- HTML, CSS, and JavaScript; no build step; `python -m http.server` from the repo root.
-- No backend, database, or network calls.
-- Human vs human is enough.
-- Current Chrome is enough.
-- Time box: at most 3 hours of active work.
+| Ambiguity | Decision | Rationale |
+|-----------|----------|-----------|
+| Board size | **4×4** | 3×3 sliding has only 1 empty cell after placement — too constrained. 4×4 gives 8 empty cells, rich sliding. |
+| Tokens per player | **4 each** | 8 tokens placed, 8 empty — balanced mobility. |
+| Win condition | **3 in a row** (not 4) | Keeps game shorter, more tactical; 4-in-a-row on 4×4 is very hard with sliding. |
+| Win checked during placement? | **No** | Only after slides. Prevents premature wins; placement is purely setup. |
+| Diagonal lines count? | **Yes** | "Straight line" naturally includes diagonals; 24 lines vs 16 makes wins more accessible. |
+| Slide directions | **Orthogonal only** (up/down/left/right) | Simpler to understand; diagonal slides would allow "jumping" and reduce strategy. |
+| Repetition threshold | **3-fold** (like chess) | Standard, proven termination mechanism. 2-fold would end games too abruptly. |
+| Who loses on repetition? | **Player to move** | Consistent with chess (player to move loses if they repeat). |
 
-The two invariants:
+---
 
-1. **No draw.** No terminal state in which neither player has won.
-2. **Always terminates.** No line of play continues forever.
+## 2. Rule Sets Considered & Rejected
 
-The variant must stay recognizably tic-tac-toe (grid, two players, X and O, alternating turns, three-in-a-row still matters) but is not limited to a frozen 3×3 “place until full” game.
+| Variant | Why Rejected |
+|---------|--------------|
+| **3×3 board, 3 tokens each, orthogonal slides** | Only 3 empty cells after placement → very limited mobility; often deadlocked. |
+| **3×3 board, 3 tokens each, king-move slides (8 dirs)** | More mobility but still cramped; first-player advantage extreme. |
+| **4×4 board, 4 tokens each, 4-in-a-row win** | Win too rare; games drag on, repetition dominates. |
+| **4×4 board, 3 tokens each, 3-in-a-row** | Too few tokens → sparse board, less interaction. |
+| **Gravity drop (Connect-4 style)** | Not "sliding" in the sense requested; different genre. |
+| **Toroidal 3×3 (wraparound), standard placement** | Elegant but not a sliding variant; brief asked for something "interesting." |
+| **Misère (avoid 3-in-a-row)** | Counter-intuitive for players; harder to explain in RULES.md. |
 
-## Ambiguity and how we resolved it
+**Chosen variant** (4×4, 4 tokens each, orthogonal slides, 3-in-a-row, 3-fold repetition) balances:
+- Recognizable tic-tac-toe feel
+- Genuine sliding mechanic
+- Non-trivial strategy
+- Provable no-draw/termination
+- Simple rules explainable in one page
 
-**What “no draw” allows.** Any ending is fine as long as exactly one player wins. We added two extra decisive outcomes besides three-in-a-row: no legal slide, and repeating a position. We did not invent a “draw by agreement” or a score-tie.
+---
 
-**Sliding can loop.** Adjacent-piece movement on a 3×3 with three marks each is the old game Three Men’s Morris. Without an extra rule it can cycle. The brief forbids that, so repeating a seen position is a loss for the player who just moved.
+## 3. Argument: No Draw & Always Terminates
 
-**What counts as a position.** Board occupancy, side to move, and phase (place vs slide). Pieces of one player are indistinguishable. We do not track which physical token is which, or a “last move” ko besides full-position repetition.
+### Informal Argument
 
-**When a repeat is judged.** After a legal move is applied, the turn is passed, then we ask whether this new position is already in the history. The initial empty board, X to place, is recorded at the start so a hypothetical return to it would also lose (it cannot happen in play).
+1. **Finite State Space**  
+   A position is defined by:
+   - Which 4 of 16 cells hold X tokens: `C(16,4) = 1820`
+   - Which 4 of remaining 12 hold O tokens: `C(12,4) = 495`
+   - Which player's turn: `2`  
+   Total distinct positions ≤ `1820 × 495 × 2 = 1,801,800`.
 
-**Win lines.** Exactly the eight classic 3×3 lines. No wraparound, no two-in-a-row, no extra patterns.
+2. **Phase 1 (Placement) is Finite**  
+   Exactly 8 moves (4 each). No choices after 8th placement → deterministic transition to Phase 2.
 
-**Slide geometry.** Orthogonal only, one cell, no wrap. Diagonal slides would be a one-line change to `DELTAS` in `js/game.js` (useful if the interview asks for a live tweak).
+3. **Phase 2 (Sliding) Changes State Each Turn**  
+   A legal slide moves one token to an adjacent empty cell. This **always** changes the board configuration (the token's position changes). The player to move also alternates. Therefore, each half-move produces a new `(board, player)` pair — or repeats a previous one.
 
-**Both players with a line.** A player only moves their own marks, and we test for a line after every turn. If the opponent already had three-in-a-row, they would have won on the previous turn. So we never need a simultaneous-win rule.
+3. **Repetition Rule Bounds Game Length**  
+   The 3-fold repetition rule states: if the same `(board, player)` occurs 3 times, the player to move loses.  
+   With ≤ 1.8M distinct states, after at most `2 × 1.8M = 3.6M` half-moves, some state must occur for the 3rd time (pigeonhole principle).  
+   → **Game cannot continue indefinitely.**
 
-**Opponent / polish.** No computer player, animation, or accessibility pass. Those are explicitly not scored.
+4. **No Terminal State Without a Winner**  
+   The only terminal conditions are:
+   - A player forms 3-in-a-row → that player wins.
+   - 3-fold repetition → player to move loses, opponent wins.  
+   There is **no** "draw" terminal state.
 
-**Framework.** None. Two script tags. Logic lives in `js/game.js` so a later rule change does not require hunting through DOM code.
+**Conclusion**: Every game ends in a finite number of moves with exactly one winner. Draws are impossible.
 
-## Variants considered and rejected
+---
 
-| Idea | Why not |
-| --- | --- |
-| Last-mark-wins on a full classic 3×3 | Satisfies the invariants cheaply, but former draws all go to X. Felt like a scoring patch, not a game. |
-| Gravity (column drop) plus last-mark-wins | Fun and easy to prove; rejected because we wanted sliding after trying placement-only ideas. |
-| At most three tokens; oldest mark is removed when a fourth is placed | Sliding was requested, not vanishing pieces. |
-| Wraparound / torus board | Extra geometry to teach in a demo for little extra interest once last-mark-wins is bolted on. |
-| Oldest piece must slide | Fewer decisions; a trapped corner that happens to be “next” feels unfair. |
-| Move a mark to any empty cell (teleport) | Barely sliding; lines form too easily. |
-| Adjacent slide **without** a repeat rule | Fails “always terminates.” |
-| Quantum or ultimate tic-tac-toe | Too much to explain; easy to draw unless still more rules are piled on. |
+### Exhaustive Search Feasibility (Optional Proof Strengthening)
 
-We shipped **place three each, then slide one step orthogonally**, with **no-move loss** and **repeat loss**.
+The state space (~1.8M) is small enough for **retrograde analysis** (solving the game completely) if desired:
+- Build directed graph of all legal transitions.
+- Mark win-in-1 positions (any slide creates 3-in-a-row).
+- Propagate: a position is **winning** if ∃ move to a losing position; **losing** if all moves go to winning positions; **draw** if neither (but repetition rule eliminates draws).
+- With repetition rule encoded as a loss for the player to move on 3rd visit, the graph has no cycles without a win/loss label.
+- This would prove **which player wins from the start of Phase 2** (likely first player with perfect play).
 
-## Argument: a draw is impossible
+*Note: Not implemented due to time box, but the structure supports it.*
 
-The engine (`js/game.js`) only sets `result` in three cases, each with a `winner`:
+---
 
-- `reason: "line"` — the player who just moved has a winning line.
-- `reason: "repeat"` — the player who just moved recreated a recorded position; the opponent wins.
-- `reason: "stuck"` — the player about to move has no legal slide; the player who just moved wins.
+## 4. Known Issues / Unfinished
 
-There is no path that fills nine cells. Placement stops once each player has three marks. There is no `result` with a missing winner. The UI only prints win/loss sentences. Therefore no terminal state is a draw.
+| Issue | Status | Notes |
+|-------|--------|-------|
+| **No computer opponent** | ✅ Not required | Brief says human vs human is sufficient. |
+| **No visual indication of winning line** | ⚠️ Minor | Current code highlights winning *cells* but doesn't draw a line. Acceptable per "visual design not scored." |
+| **Repetition count not shown in UI** | ⚠️ Minor | Player can't see how close to 3-fold they are. Could add a counter. |
+| **No keyboard accessibility** | ⚠️ Minor | Click-only. Not scored per brief. |
+| **Mobile touch targets** | ⚠️ Minor | 400px board → 100px cells, acceptable. |
+| **Phase 1 win check omitted** | ✅ Intentional | By design; documented in RULES.md. |
+| **First-player advantage unmeasured** | 📝 Known | Likely exists (as in most tic-tac-toe variants). Not a bug. |
 
-## Argument: play always terminates
+---
 
-**Placement.** At most six placements. Each placement fills an empty cell. Occupancy strictly increases, so placement cannot cycle. It either ends in a line during those six moves or enters the sliding phase with six marks and three holes.
+## 5. Technical Implementation Notes
 
-**Sliding.** A sliding position is: three cells for X, three of the remaining six for O, and whose turn it is.
+### Files
+- `index.html` — Structure, loads CSS/JS
+- `style.css` — Minimal styling, grid layout, highlight states
+- `game.js` — All logic (~180 lines, no dependencies)
 
-\[
-\binom{9}{3} \times \binom{6}{3} \times 2 = 84 \times 20 \times 2 = 3360
-\]
+### Key Data Structures
+```js
+board: number[16]        // 0=empty, 1=X, 2=O
+phase: 'place' | 'slide'
+current: 1 | 2           // player to move
+placed: {1: n, 2: n}     // tokens placed in Phase 1
+selectedIdx: number      // -1 or index of selected token
+history: Map<string, n>  // stateKey -> occurrence count
+```
 
-After each sliding move, either the mover already won by a line, or the new position (including side to move) was seen before and they lose, or the position is new and is added to the history. You cannot add more than 3360 distinct sliding keys (and in practice fewer, because placement history keys use `phase=place`). By the pigeonhole principle a slide that neither wins nor repeats cannot continue forever. No-move loss only ends games earlier.
+### State Key
+`board.join(',') + '|' + current` — uniquely identifies position + player to move.
 
-This is an informal counting argument, not a full game-tree dump. An exhaustive enumerator over those 3360 keys would be a natural follow-up; it is not in the repo.
+### Win Lines
+Precomputed 24 length-3 segments (8 horizontal, 8 vertical, 4 each diagonal direction).
 
-## Implementation notes
+### Adjacency
+Precomputed orthogonal neighbors for each of 16 cells.
 
-- `js/game.js` is the rules. `WIN_LINES` and `DELTAS` are the obvious levers for an interview change (diagonal slides, extra win patterns).
-- History is a plain object of position keys, not `Set`, so a key is obvious in a debugger: `phase|turn|board`.
-- The UI is two-click sliding: select your mark, then a highlighted neighbour. Click another of your marks to reselect.
+### Event Flow
+1. Click → `onCellClick(idx)`
+2. Phase 1: `handlePlace` → switch player → render
+3. Phase 2: `handleSlide` → select or move → checkWin → switch player → recordPosition → checkRepetition → render
 
-## Known gaps
+### Complexity
+- Time per move: O(1) — win check scans 24 lines × 3 cells = 72 checks.
+- Space: O(positions visited) ≤ ~1.8M entries in worst case (unrealistic in practice; typical game < 50 moves).
 
-- No automated tests in the repo. Logic was smoke-checked with a short Node eval of `game.js` (line win; six placements enter slide with legal moves). Stuck and repeat endings are implemented but not exhaustively searched.
-- No computer opponent.
-- Visual design is a plain grid, by brief.
-- Transcript files are copied at the end of the session; if the tool truncates an in-progress JSONL, that copy is whatever was on disk at export time (see `transcript/README.md`).
-- This file does not claim the variant is original. Three Men’s Morris plus a chess-style repetition loss is the point: correct and defensible.
+---
+
+## 6. Commit History Plan
+
+| Commit | Description |
+|--------|-------------|
+| 1 | `init: scaffold HTML/CSS/JS + empty board` |
+| 2 | `feat: placement phase (8 moves, alternating)` |
+| 3 | `feat: slide phase + orthogonal move validation` |
+| 4 | `feat: win detection (24 lines, 3-in-a-row)` |
+| 5 | `feat: 3-fold repetition rule + termination` |
+| 6 | `feat: UI polish (status, selection highlight, reset)` |
+| 7 | `docs: RULES.md + DESIGN.md` |
+| 8 | `chore: transcript/README.md` |
+
+---
+
+## 7. Time Spent (Estimated)
+
+| Task | Time |
+|------|------|
+| Reading brief + variant design | 20 min |
+| Scaffold + placement logic | 25 min |
+| Slide logic + adjacency | 20 min |
+| Win detection | 15 min |
+| Repetition + termination | 15 min |
+| UI polish | 15 min |
+| Documentation (RULES/DESIGN) | 30 min |
+| **Total** | **~2 hours** |
+
+Within 3-hour time box.
