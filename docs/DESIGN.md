@@ -15,11 +15,13 @@
 | Board size | **4×4** | 3×3 sliding has only 1 empty cell after placement — too constrained. 4×4 gives 8 empty cells, rich sliding. |
 | Tokens per player | **4 each** | 8 tokens placed, 8 empty — balanced mobility. |
 | Win condition | **3 in a row** (not 4) | Keeps game shorter, more tactical; 4-in-a-row on 4×4 is very hard with sliding. |
-| Win checked during placement? | **No** | Only after slides. Prevents premature wins; placement is purely setup. |
+| Win checked during placement? | **Yes** | Natural tic-tac-toe behavior; if you form 3-in-a-row while placing, you win. |
 | Diagonal lines count? | **Yes** | "Straight line" naturally includes diagonals; 24 lines vs 16 makes wins more accessible. |
 | Slide directions | **Orthogonal only** (up/down/left/right) | Simpler to understand; diagonal slides would allow "jumping" and reduce strategy. |
+| Who slides first? | **X** (placed first) | Fairness — player who starts the game starts both phases. |
 | Repetition threshold | **3-fold** (like chess) | Standard, proven termination mechanism. 2-fold would end games too abruptly. |
 | Who loses on repetition? | **Player to move** | Consistent with chess (player to move loses if they repeat). |
+| Repetition tracked in Phase 1? | **No** | Phase 1 is deterministic setup; repetition only matters in slide phase. |
 
 ---
 
@@ -34,8 +36,9 @@
 | **Gravity drop (Connect-4 style)** | Not "sliding" in the sense requested; different genre. |
 | **Toroidal 3×3 (wraparound), standard placement** | Elegant but not a sliding variant; brief asked for something "interesting." |
 | **Misère (avoid 3-in-a-row)** | Counter-intuitive for players; harder to explain in RULES.md. |
+| **No win check during placement** | Rejected after review — unnatural for tic-tac-toe; players expect immediate wins. |
 
-**Chosen variant** (4×4, 4 tokens each, orthogonal slides, 3-in-a-row, 3-fold repetition) balances:
+**Chosen variant** (4×4, 4 tokens each, orthogonal slides, 3-in-a-row, win during placement, X slides first, 3-fold repetition in slide phase) balances:
 - Recognizable tic-tac-toe feel
 - Genuine sliding mechanic
 - Non-trivial strategy
@@ -56,20 +59,20 @@
    Total distinct positions ≤ `1820 × 495 × 2 = 1,801,800`.
 
 2. **Phase 1 (Placement) is Finite**  
-   Exactly 8 moves (4 each). No choices after 8th placement → deterministic transition to Phase 2.
+   Exactly 8 moves (4 each). A win can end the game early. If no win after 8th placement → deterministic transition to Phase 2 with X to move.
 
 3. **Phase 2 (Sliding) Changes State Each Turn**  
    A legal slide moves one token to an adjacent empty cell. This **always** changes the board configuration (the token's position changes). The player to move also alternates. Therefore, each half-move produces a new `(board, player)` pair — or repeats a previous one.
 
 3. **Repetition Rule Bounds Game Length**  
-   The 3-fold repetition rule states: if the same `(board, player)` occurs 3 times, the player to move loses.  
+   The 3-fold repetition rule states: if the same `(board, player)` occurs 3 times during Phase 2, the player to move loses.  
    With ≤ 1.8M distinct states, after at most `2 × 1.8M = 3.6M` half-moves, some state must occur for the 3rd time (pigeonhole principle).  
    → **Game cannot continue indefinitely.**
 
 4. **No Terminal State Without a Winner**  
    The only terminal conditions are:
-   - A player forms 3-in-a-row → that player wins.
-   - 3-fold repetition → player to move loses, opponent wins.  
+   - A player forms 3-in-a-row (in Phase 1 or Phase 2) → that player wins.
+   - 3-fold repetition in Phase 2 → player to move loses, opponent wins.  
    There is **no** "draw" terminal state.
 
 **Conclusion**: Every game ends in a finite number of moves with exactly one winner. Draws are impossible.
@@ -80,7 +83,7 @@
 
 The state space (~1.8M) is small enough for **retrograde analysis** (solving the game completely) if desired:
 - Build directed graph of all legal transitions.
-- Mark win-in-1 positions (any slide creates 3-in-a-row).
+- Mark win-in-1 positions (any move creates 3-in-a-row).
 - Propagate: a position is **winning** if ∃ move to a losing position; **losing** if all moves go to winning positions; **draw** if neither (but repetition rule eliminates draws).
 - With repetition rule encoded as a loss for the player to move on 3rd visit, the graph has no cycles without a win/loss label.
 - This would prove **which player wins from the start of Phase 2** (likely first player with perfect play).
@@ -89,7 +92,40 @@ The state space (~1.8M) is small enough for **retrograde analysis** (solving the
 
 ---
 
-## 4. Known Issues / Unfinished
+## 4. Code Review Findings & Fixes Applied
+
+### Issues Found During Review
+
+| Issue | Severity | Fix Applied |
+|-------|----------|-------------|
+| **No win check during placement** | High | Added `checkWin(current)` after each placement; immediate win ends game. |
+| **Wrong player slides first** | Medium | After placement phase, explicitly set `current = X` so X slides first (placed first). |
+| **Repetition tracked from reset** | Low | `recordPosition()` now only records during `phase === 'slide'`. Empty board not counted. |
+| **No handling of "no legal moves"** | Low | Not explicitly handled, but with 8 empty cells and orthogonal slides, a legal move always exists unless all 4 tokens are fully surrounded (extremely rare; repetition would trigger first). |
+| **Selected token stays selected on invalid target** | UX | Intentional — allows player to try another target without re-clicking. |
+| **Win highlighting shows all 3 cells** | ✓ Correct | `checkWinningCell` correctly identifies all cells in any winning line. |
+| **State key includes player to move** | ✓ Correct | `board.join(',') + '|' + current` ensures repetition is per player-to-move. |
+| **History never cleared except reset** | ✓ Correct | Map persists for entire game session. |
+
+### Edge Cases Verified
+
+| Scenario | Behavior |
+|----------|----------|
+| X forms 3-in-a-row on 3rd placement | X wins immediately; game ends |
+| O forms 3-in-a-row on 4th placement | O wins immediately; game ends |
+| Placement phase ends 4-4 no winner | Transitions to slide phase, X to move |
+| Slide creates 3-in-a-row | Moving player wins immediately |
+| Slide creates opponent's 3-in-a-row | Impossible — only moving player's tokens change |
+| Same position occurs 3× in slide phase | Player to move loses (3-fold repetition) |
+| Click own token → click same token | Deselects |
+| Click own token → click invalid target | Token stays selected (can try another target) |
+| Click opponent's token / empty cell with nothing selected | No-op |
+| Reset during game | Full state reset, back to placement phase |
+| Win on last possible slide | Detected correctly |
+
+---
+
+## 5. Known Issues / Unfinished
 
 | Issue | Status | Notes |
 |-------|--------|-------|
@@ -98,17 +134,15 @@ The state space (~1.8M) is small enough for **retrograde analysis** (solving the
 | **Repetition count not shown in UI** | ⚠️ Minor | Player can't see how close to 3-fold they are. Could add a counter. |
 | **No keyboard accessibility** | ⚠️ Minor | Click-only. Not scored per brief. |
 | **Mobile touch targets** | ⚠️ Minor | 400px board → 100px cells, acceptable. |
-| **Phase 1 win check omitted** | ✅ Intentional | By design; documented in RULES.md. |
-| **First-player advantage unmeasured** | 📝 Known | Likely exists (as in most tic-tac-toe variants). Not a bug. |
 
 ---
 
-## 5. Technical Implementation Notes
+## 6. Technical Implementation Notes
 
 ### Files
 - `index.html` — Structure, loads CSS/JS
 - `style.css` — Minimal styling, grid layout, highlight states
-- `game.js` — All logic (~180 lines, no dependencies)
+- `game.js` — All logic (~240 lines, no dependencies)
 
 ### Key Data Structures
 ```js
@@ -117,7 +151,7 @@ phase: 'place' | 'slide'
 current: 1 | 2           // player to move
 placed: {1: n, 2: n}     // tokens placed in Phase 1
 selectedIdx: number      // -1 or index of selected token
-history: Map<string, n>  // stateKey -> occurrence count
+history: Map<string, n>  // stateKey -> occurrence count (slide phase only)
 ```
 
 ### State Key
@@ -131,31 +165,32 @@ Precomputed orthogonal neighbors for each of 16 cells.
 
 ### Event Flow
 1. Click → `onCellClick(idx)`
-2. Phase 1: `handlePlace` → switch player → render
-3. Phase 2: `handleSlide` → select or move → checkWin → switch player → recordPosition → checkRepetition → render
+2. Phase 1: `handlePlace` → checkWin → if win: end; else if 4-4: phase='slide', current=X, recordPosition; else switch player → render
+3. Phase 2: `handleSlide` → select or move → if move: checkWin → if win: end; else switch player → recordPosition → checkRepetition → if 3×: end; else render
 
 ### Complexity
 - Time per move: O(1) — win check scans 24 lines × 3 cells = 72 checks.
-- Space: O(positions visited) ≤ ~1.8M entries in worst case (unrealistic in practice; typical game < 50 moves).
+- Space: O(positions visited in slide phase) ≤ ~1.8M entries in worst case (unrealistic; typical game < 50 moves).
 
 ---
 
-## 6. Commit History Plan
+## 7. Commit History Plan
 
 | Commit | Description |
 |--------|-------------|
-| 1 | `init: scaffold HTML/CSS/JS + empty board` |
-| 2 | `feat: placement phase (8 moves, alternating)` |
+| 1 | `init: scaffold HTML/CSS/JS with empty board` |
+| 2 | `feat: placement phase with win detection` |
 | 3 | `feat: slide phase + orthogonal move validation` |
 | 4 | `feat: win detection (24 lines, 3-in-a-row)` |
-| 5 | `feat: 3-fold repetition rule + termination` |
+| 5 | `feat: 3-fold repetition rule + termination (slide phase only)` |
 | 6 | `feat: UI polish (status, selection highlight, reset)` |
 | 7 | `docs: RULES.md + DESIGN.md` |
 | 8 | `chore: transcript/README.md` |
+| 9 | `fix: win during placement, X slides first, repetition only in slide phase` |
 
 ---
 
-## 7. Time Spent (Estimated)
+## 8. Time Spent (Estimated)
 
 | Task | Time |
 |------|------|
@@ -166,6 +201,7 @@ Precomputed orthogonal neighbors for each of 16 cells.
 | Repetition + termination | 15 min |
 | UI polish | 15 min |
 | Documentation (RULES/DESIGN) | 30 min |
-| **Total** | **~2 hours** |
+| Code review + bug fixes | 20 min |
+| **Total** | **~2.5 hours** |
 
 Within 3-hour time box.

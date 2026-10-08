@@ -1,7 +1,7 @@
 // Sliding Tic-Tac-Toe (4×4) — Game Logic
-// Phase 1: Place 4 tokens each (alternating)
+// Phase 1: Place 4 tokens each (alternating) — win checked after each placement
 // Phase 2: Slide own token orthogonally to adjacent empty cell
-// Win: 3 in a row (orthogonal or diagonal) after a slide
+// Win: 3 in a row (orthogonal or diagonal) after any move
 // No draw: 3-fold repetition → player to move loses
 
 const EMPTY = 0;
@@ -79,7 +79,7 @@ function resetGame() {
   history = new Map();
   gameOver = false;
   winner = null;
-  recordPosition();
+  // Don't record initial empty position - only record during slide phase
   render();
   updateStatus();
 }
@@ -100,9 +100,20 @@ function handlePlace(idx) {
   board[idx] = current;
   placed[current]++;
 
+  // Check win immediately after placement
+  if (checkWin(current)) {
+    gameOver = true;
+    winner = current;
+    render();
+    updateStatus();
+    return;
+  }
+
   // Check if both players have placed all tokens
   if (placed[X] === 4 && placed[O] === 4) {
     phase = 'slide';
+    // X placed first, so X should slide first for fairness
+    current = X;
     recordPosition(); // Record first slide-phase position
   } else {
     current = current === X ? O : X;
@@ -181,12 +192,15 @@ function getStateKey() {
 }
 
 function recordPosition() {
+  // Only record during slide phase
+  if (phase !== 'slide') return;
   const key = getStateKey();
   const count = (history.get(key) || 0) + 1;
   history.set(key, count);
 }
 
 function checkRepetition() {
+  if (phase !== 'slide') return false;
   const key = getStateKey();
   return (history.get(key) || 0) >= 3;
 }
